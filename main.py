@@ -80,6 +80,8 @@ journal_text = []
 journal_font = pygame.font.SysFont("Arial", 24)
 journal_surface = pygame.Surface((300, 340))
 journal_rect = journal_surface.get_rect(center=(160, 720))
+scroll_offset = 0
+line_height = 30
 
 running = True
 while running:
@@ -109,18 +111,26 @@ while running:
                 if journal_text:
                     journal_text.pop()
 
+        if event.type == pygame.MOUSEWHEEL:
+            if journal_active:
+                scroll_offset -= event.y * line_height
+                max_scroll = max(0, len(journal_text) * line_height - journal_surface.get_height())
+                scroll_offset = max(0, min(scroll_offset, max_scroll))
+
     screen.blit(background_image, (0, 0))
 
     if journal_active:
         journal_surface.fill((200, 200, 200))
 
-        y_offset = 10
+        y_offset = 10 - scroll_offset
         for line in journal_text:
             text_surface = journal_font.render(line, True, (0, 0, 0))
-            journal_surface.blit(text_surface, (10, y_offset))
-            y_offset += 30
+            if y_offset + line_height > 0 and y_offset < journal_surface.get_height():
+                journal_surface.blit(text_surface, (10, y_offset))
+            y_offset += line_height
 
         screen.blit(journal_surface, journal_rect)
+
 
     for i, pos in enumerate(pos_in_rooms['R1']):
         pygame.draw.circle(screen, colors[i], pos[0], radius)
