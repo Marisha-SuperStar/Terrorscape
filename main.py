@@ -75,6 +75,12 @@ already_do = [False, False, False]
 
 radius = 30
 
+journal_active = False
+journal_text = []
+journal_font = pygame.font.SysFont("Arial", 24)
+journal_surface = pygame.Surface((300, 340))
+journal_rect = journal_surface.get_rect(center=(160, 720))
+
 running = True
 while running:
     for event in pygame.event.get():
@@ -92,10 +98,32 @@ while running:
                     character_selected_bool[i] = True
                     break
 
+        if event.type == pygame.KEYDOWN:
+            if event.key == pygame.K_j:
+                journal_active = not journal_active
+
+        if event.type == pygame.KEYDOWN:
+            if event.key == pygame.K_RETURN:
+                journal_text.append("тест")
+            elif event.key == pygame.K_BACKSPACE:
+                if journal_text:
+                    journal_text.pop()
+
     screen.blit(background_image, (0, 0))
 
-    for i, pos in enumerate(starting_positions):
-        pygame.draw.circle(screen, colors[i], pos, radius)
+    if journal_active:
+        journal_surface.fill((200, 200, 200))
+
+        y_offset = 10
+        for line in journal_text:
+            text_surface = journal_font.render(line, True, (0, 0, 0))
+            journal_surface.blit(text_surface, (10, y_offset))
+            y_offset += 30
+
+        screen.blit(journal_surface, journal_rect)
+
+    for i, pos in enumerate(pos_in_rooms['R1']):
+        pygame.draw.circle(screen, colors[i], pos[0], radius)
 
     for i, pos in enumerate(character_selected):
         if character_selected_bool[i]:
