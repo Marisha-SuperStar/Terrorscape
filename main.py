@@ -1,3 +1,4 @@
+import json
 import random
 import time
 from collections import deque
@@ -7,10 +8,31 @@ import sys
 
 
 class Item: #карточки предметов
-    def __init__(self, image, name):
+    def __init__(self, image, name, filename):
         self.item_image = image
         self.item_name = name
+        self.image_filename = filename
 
+    def to_dict(self):
+        return {
+            'image_filename': self.image_filename
+        }
+
+    @staticmethod
+    def from_dict(data):
+        match data['image_filename']:
+            case Game.heal_item.image_filename:
+                return Game.heal_item
+            case Game.key_item.image_filename:
+                return Game.key_item
+            case Game.gun_item.image_filename:
+                return Game.gun_item
+            case Game.ammo_item.image_filename:
+                return Game.ammo_item
+            case Game.sword_item.image_filename:
+                return Game.sword_item
+            case Game.def1_item.image_filename:
+                return Game.def1_item
 
 class Player:
     def __init__(self, player_id):
@@ -51,10 +73,44 @@ class Player:
         return self.health > 0
 
 
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'health': self.health,
+            'scare': self.scare,
+            'inventory': [item.to_dict() for item in self.inventory],
+            'has_acted': self.has_acted,
+            'position': self.position
+        }
+
+    @classmethod
+    def from_dict(cls, data): #метод чтобы создать объект класса игрок во время загрузки игры
+        player = cls(data['id'])
+        player.health = data['health']
+        player.scare = data['scare']
+        player.inventory = [Item.from_dict(item_data) for item_data in data['inventory']]
+        player.has_acted = data['has_acted']
+        player.position = data['position']
+        return player
+
+
 class Killer:
     def __init__(self):
         self.id = 3
         self.position = None
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'position': self.position
+        }
+
+    @classmethod
+    def from_dict(cls, data): #метод чтобы создать объект класса убийца во время загрузки игры
+        killer = cls()
+        killer.id = data['id']
+        killer.position = data['position']
+        return killer
 
     def move(self):
         current_room = self.get_position()
@@ -176,6 +232,21 @@ class Journal:
         self.scroll_offset = 0
         self.line_height = 30
         self.active = False
+
+    def to_dict(self):
+        return {
+            'entries': self.entries,
+            'scroll_offset': self.scroll_offset,
+            'active': self.active
+        }
+
+    @classmethod #метод чтобы создать объект класса журнал во время загрузки игры
+    def from_dict(cls, data):
+        journal = cls()
+        journal.entries = data['entries']
+        journal.scroll_offset = data['scroll_offset']
+        journal.active = data['active']
+        return journal
 
     def init_font(self): #инициализация шрифта
         self.font = pygame.font.SysFont("Arial", 24)
@@ -384,12 +455,12 @@ class Game:
     gui = GUI()
     journal = Journal()
 
-    heal_item = Item(None, 'Целебные травы')
-    key_item = Item(None, 'Ключ')
-    gun_item = Item(None, 'Револьвер')
-    ammo_item = Item(None, 'Патроны')
-    sword_item = Item(None, 'Меч')
-    def1_item = Item(None, 'Мешок цемента')
+    heal_item = Item(None, 'Целебные травы', 'heal.png')
+    key_item = Item(None, 'Ключ', 'key.png')
+    gun_item = Item(None, 'Револьвер', 'gun.png')
+    ammo_item = Item(None, 'Патроны', 'ammo.png')
+    sword_item = Item(None, 'Меч', 'sword.png')
+    def1_item = Item(None, 'Мешок цемента', 'def1.png')
 
     zone_items = {
         "R2": [],
@@ -444,7 +515,7 @@ class Game:
         "B2": ["R1", "B1", "B3", "B5"],
         "B3": ["B2", "B4"],
         "B4": ["B3", "G5"],
-        "B5": ["B2", "R3", "R4"],
+        "B5": ["B2", "R3", "R4", "G5"],
         "R1": ["R2", "R3", "B1", "B2"],
         "R2": ["R1", "R3", "R5", "G1"],
         "R3": ["R1", "R2", "B5"],
@@ -454,8 +525,64 @@ class Game:
         "G2": ["G1", "G3", "B1"],
         "G3": ["G2", "G4", "G5"],
         "G4": ["G3", "R5"],
-        "G5": ["G3", "B4"],
+        "G5": ["G3", "B4", "B5"],
     }
+
+    @staticmethod
+    def save_game():
+        save_data = {
+            'keys': Game.keys,
+            'repairs': Game.repairs,
+            'count_round': Game.count_round,
+            'already_repaired': Game.already_repaired,
+            'current_turn': Game.current_turn,
+            'computer_do': Game.computer_do,
+            'players': [player.to_dict() for player in Game.players],
+            'killer': Game.killer.to_dict(),
+            'journal': Game.journal.to_dict(),
+            'zone_items': {zone: [item.to_dict() for item in items] for zone, items in Game.zone_items.items()},
+            'pos_in_rooms': Game.pos_in_rooms,
+            'gui': {
+                'character_selected_bool': Game.gui.character_selected_bool
+            }
+        }
+
+        with open('savegame.json', 'w') as f:
+            json.dump(save_data, f, indent=2)
+
+        Game.journal.add_entry("Игра сохранена")
+
+    @staticmethod
+    def load_game():
+        try:
+            with open('savegame.json', 'r') as f:
+                save_data = json.load(f)
+
+            Game.keys = save_data['keys']
+            Game.repairs = save_data['repairs']
+            Game.count_round = save_data['count_round']
+            Game.already_repaired = save_data['already_repaired']
+            Game.current_turn = save_data['current_turn']
+            Game.computer_do = save_data['computer_do']
+
+            Game.players = [Player.from_dict(player_data) for player_data in save_data['players']]
+            Game.killer = Killer.from_dict(save_data['killer'])
+            Game.journal = Journal.from_dict(save_data['journal'])
+            Game.journal.init_font()
+
+            Game.zone_items = {
+                zone: [Item.from_dict(item_data) for item_data in items_data]
+                for zone, items_data in save_data['zone_items'].items()
+            }
+
+            Game.pos_in_rooms = save_data['pos_in_rooms']
+            Game.gui.character_selected_bool = save_data['gui']['character_selected_bool']
+
+            Game.journal.add_entry("Игра загружена")
+            return True
+
+        except (FileNotFoundError, json.JSONDecodeError, KeyError):
+            return False
 
     @staticmethod #метод можно использовать из класса без привязки к объекту
     def find_shortest_path(start_room, target_room):
@@ -608,7 +735,6 @@ class Game:
         Game.initialize_items()
         Game.distribute_items()
         Game.journal.add_entry("---НОВЫЙ РАУНД---")
-
         running = True
         while running:
             if Game.check_victory():
@@ -618,6 +744,12 @@ class Game:
                 for event in pygame.event.get():
                     if event.type == pygame.QUIT:
                         running = False
+
+                    if event.type == pygame.KEYDOWN:
+                        if event.key == pygame.K_s:  # Сохраняем игру при нажатии S
+                            Game.save_game()
+                        elif event.key == pygame.K_l:  # Загружаем игру при нажатии L
+                            Game.load_game()
 
                     if Game.journal.active:
                         if event.type == pygame.KEYDOWN:
